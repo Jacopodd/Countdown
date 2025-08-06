@@ -7,31 +7,44 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
 
-    body {
+    :root {
+      --bg: #000;
+      --fg: #fff;
+      --accent: red;
+    }
+
+    html, body {
       margin: 0;
-      background-color: #000000;
+      padding: 0;
+      height: 100%;
+    }
+
+    body {
+      background-color: var(--bg);
       font-family: 'Orbitron', monospace;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      height: 100vh;
       text-align: center;
+      gap: 30px;
     }
 
     #countdown {
       font-size: 16vw;
-      color: white;
-      text-shadow: 0 0 10px white;
+      line-height: 1;
+      color: var(--fg);
+      text-shadow: 0 0 10px var(--fg);
       transition: color 0.5s, text-shadow 0.5s;
+      user-select: none;
     }
 
     #message {
       font-size: 6vw;
-      margin-top: 30px;
-      color: white;
-      text-shadow: 0 0 10px white;
-      transition: color 0.5s, text-shadow 0.5s;
+      color: var(--fg);
+      text-shadow: 0 0 10px var(--fg);
+      transition: color 0.5s, text-shadow 0.5s, opacity 0.3s;
+      user-select: none;
     }
 
     .blink {
@@ -39,14 +52,12 @@
     }
 
     .red-glow {
-      color: red !important;
-      text-shadow: 0 0 15px red !important;
+      color: var(--accent) !important;
+      text-shadow: 0 0 15px var(--accent) !important;
     }
 
     @keyframes blink {
-      to {
-        visibility: hidden;
-      }
+      to { visibility: hidden; }
     }
 
     #testButton {
@@ -56,91 +67,134 @@
       font-size: 1.2em;
       cursor: pointer;
       background: #222;
-      color: white;
-      border: 2px solid red;
+      color: var(--fg);
+      border: 2px solid var(--accent);
       border-radius: 5px;
-      box-shadow: 0 0 10px red;
+      box-shadow: 0 0 10px var(--accent);
       font-family: 'Orbitron', monospace;
+      /* Mostralo: se vuoi nasconderlo in produzione, rimetti display:none */
       display: none;
     }
 
     #testButton:hover {
       background-color: #400;
     }
+
+    /* Accessibilità dimensioni su schermi piccoli */
+    @media (max-width: 420px) {
+      #countdown { font-size: 20vw; }
+      #message { font-size: 8vw; }
+    }
   </style>
 </head>
 <body>
   <div id="countdown">Caricamento...</div>
   <div id="message">Manca poco...</div>
-  <button id="testButton">🧪 Test (10 sec)</button>
+  <button id="testButton" type="button" aria-pressed="false">🧪 Test (10 sec)</button>
 
   <script>
-    let deadline;
+    // Modalità operative: "real" (conta a prossima 23:59) oppure "test" (+10s)
+    let mode = 'real';
+    let testDeadline = null;
 
+    // Calcola la "prossima 23:59:00" in ora locale.
     function getRealDeadline() {
       const now = new Date();
-      const target = new Date();
-      target.setHours(23, 59, 0, 0);
+      const target = new Date(now); // copia
+      target.setHours(23, 59, 0, 0); // oggi 23:59:00
+
+      // Se siamo già oltre le 23:59 di oggi -> sposta a domani 23:59
       if (now > target) {
-        // Se siamo già oltre le 23:59 di oggi, punta a domani
         target.setDate(target.getDate() + 1);
       }
       return target;
     }
 
-    function setTestDeadline() {
-      deadline = new Date(Date.now() + 10 * 1000); // +10 secondi
-      //deadline = new Date(Date.now() + 4 * 60 * 60 * 1000); // +5 ore
+    // Restituisce la deadline della modalità corrente
+    function getActiveDeadline() {
+      if (mode === 'test' && testDeadline instanceof Date) {
+        return testDeadline;
+      }
+      return getRealDeadline();
     }
 
-    function updateTimer() {
-      const deadline = getRealDeadline(); // ✅ calcola sempre la scadenza giusta
-    
-      const now = new Date();
-      const diff = deadline - now;
-    
+    function formatTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      return (
+        String(hours).padStart(2, '0') + ':' +
+        String(minutes).padStart(2, '0') + ':' +
+        String(seconds).padStart(2, '0')
+      );
+    }
+
+    function setDangerVisuals(on) {
       const countdown = document.getElementById('countdown');
       const message = document.getElementById('message');
+      if (on) {
+        countdown.classList.add('blink', 'red-glow');
+        message.classList.add('blink', 'red-glow');
+      } else {
+        countdown.classList.remove('blink', 'red-glow');
+        message.classList.remove('blink', 'red-glow');
+      }
+    }
+
     
+    function updateTimer() {
+      const countdown = document.getElementById('countdown');
+      const message = document.getElementById('message');
+
+      const deadline = getActiveDeadline();
+      const now = new Date();
+      const diff = deadline - now;
+
       if (diff <= 0) {
-        countdown.textContent = "00:00:00";
-        message.textContent = "Pigliallo ngulo Gennarè";
-        countdown.classList.remove("blink", "red-glow");
-        message.classList.remove("blink", "red-glow");
+        countdown.textContent = '00:00:00';
+        message.textContent = 'Pigliallo ngulo Gennarè';
+        setDangerVisuals(false);
+
+        clearInterval(intervalId); // ⬅️ Ferma il timer definitivamente
         return;
       }
 
-      const hours = Math.floor(diff / 1000 / 60 / 60);
-      const minutes = Math.floor((diff / 1000 / 60) % 60);
-      const seconds = Math.floor((diff / 1000) % 60);
-    
-      countdown.textContent =
-        String(hours).padStart(2, '0') + ':' +
-        String(minutes).padStart(2, '0') + ':' +
-        String(seconds).padStart(2, '0');
-    
+      countdown.textContent = formatTime(diff);
+
       if (diff <= 4 * 60 * 60 * 1000) {
-        countdown.classList.add("blink", "red-glow");
-        message.classList.add("blink", "red-glow");
+        setDangerVisuals(true);
       } else {
-        countdown.classList.remove("blink", "red-glow");
-        message.classList.remove("blink", "red-glow");
+        setDangerVisuals(false);
+      }
+
+      if (mode === 'test') {
+        message.textContent = 'Modalità test attiva...';
+      } else {
+        message.textContent = 'Manca poco...';
       }
     }
 
-    // Avvio iniziale
-    setRealDeadline();
-    setInterval(updateTimer, 1000);
+
+    // Avvio
+    const intervalId = setInterval(updateTimer, 1000);
     updateTimer();
 
-    // Pulsante test
-    document.getElementById('testButton').addEventListener('click', () => {
-      setTestDeadline();
+    // Pulsante test: imposta una deadline a +10s senza toccare la logica del countdown reale
+    const testBtn = document.getElementById('testButton');
+    testBtn.addEventListener('click', () => {
+      mode = 'test';
+      testDeadline = new Date(Date.now() + 10 * 1000);
+      testBtn.setAttribute('aria-pressed', 'true');
       updateTimer();
+      // Torna allo stato "non premuto" quando il test finisce automaticamente in updateTimer
+      setTimeout(() => testBtn.setAttribute('aria-pressed', 'false'), 12000);
     });
+
+    // Facoltativo: se vuoi garantire che l'ora "23:59" segua sempre il giorno locale
+    // anche in caso di cambio ora legale, l’uso di setHours come sopra è già corretto
+    // perché ricalcoliamo ogni secondo la prossima 23:59 in locale.
   </script>
 </body>
 </html>
-
-
-

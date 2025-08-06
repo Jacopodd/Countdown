@@ -77,12 +77,15 @@
   <script>
     let deadline;
 
-    function setRealDeadline() {
+    function getRealDeadline() {
       const now = new Date();
       const target = new Date();
-      target.setDate(now.getDate() + 1);
-      target.setHours(23, 59, 0, 0); // 23:59:00 domani
-      deadline = target;
+      target.setHours(23, 59, 0, 0);
+      if (now > target) {
+        // Se siamo già oltre le 23:59 di oggi, punta a domani
+        target.setDate(target.getDate() + 1);
+      }
+      return target;
     }
 
     function setTestDeadline() {
@@ -91,17 +94,17 @@
     }
 
     function updateTimer() {
-      if (!deadline) return;
-
+      const deadline = getRealDeadline(); // ✅ calcola sempre la scadenza giusta
+    
       const now = new Date();
       const diff = deadline - now;
-
+    
       const countdown = document.getElementById('countdown');
       const message = document.getElementById('message');
-
+    
       if (diff <= 0) {
         countdown.textContent = "00:00:00";
-        message.textContent = "Pigliallo ngulo Gennarè"; // 👈 Cambia la scritta
+        message.textContent = "Pigliallo ngulo Gennarè";
         countdown.classList.remove("blink", "red-glow");
         message.classList.remove("blink", "red-glow");
         return;
@@ -110,13 +113,12 @@
       const hours = Math.floor(diff / 1000 / 60 / 60);
       const minutes = Math.floor((diff / 1000 / 60) % 60);
       const seconds = Math.floor((diff / 1000) % 60);
-
+    
       countdown.textContent =
         String(hours).padStart(2, '0') + ':' +
         String(minutes).padStart(2, '0') + ':' +
         String(seconds).padStart(2, '0');
-
-      // Se mancano 4 ore o meno: attiva lampeggio rosso
+    
       if (diff <= 4 * 60 * 60 * 1000) {
         countdown.classList.add("blink", "red-glow");
         message.classList.add("blink", "red-glow");
@@ -139,5 +141,6 @@
   </script>
 </body>
 </html>
+
 
 
